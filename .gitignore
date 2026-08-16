@@ -1,0 +1,54 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+/dist/
+/build/
+/.next/
+/out/
+/.turbo/
+coverage/
+*.tsbuildinfo
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test / temp artifacts
+.tmp/
+tmp/
+temp/
+
+# Local tooling / generated metadata
+.agents/
+.claude/
+.windsurf/
+skills-lock.json
+project-structure.txt
+commands.txt
+
+# Generated Prisma/client output
+/generated/prisma
+
+# Optional: local database / caches
+*.sqlite
+*.sqlite3
+.cache/
