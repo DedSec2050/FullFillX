@@ -1,6 +1,7 @@
-export interface Product {
+export interface SKU {
   id: string;
-  tenantId: string;
+  productId: string;
+  sku: string;
   name: string;
   createdAt: Date;
   updatedAt: Date;
