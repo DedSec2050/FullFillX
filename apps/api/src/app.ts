@@ -1,5 +1,7 @@
 import Fastify from "fastify";
 
+import { productRoutes } from "../../../services/products/presentation/product.routes.js";
+
 export function buildApp() {
   const app = Fastify({
     logger: true,
@@ -11,6 +13,8 @@ export function buildApp() {
       service: "fulfillx-api",
     };
   });
+
+  app.register(productRoutes);
 
   return app;
 }
