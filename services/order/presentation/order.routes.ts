@@ -7,6 +7,8 @@ import { GetOrder } from "../application/get-order.js";
 import { ListOrders } from "../application/list-orders.js";
 import { AllocateOrder } from "../application/allocate-order.js";
 import { PrismaOrderAllocationRepository } from "../infrastructure/prisma-order-allocation-repository.js";
+import { FulfillOrder } from "../application/fulfill-order.js";
+import { PrismaOrderFulfillmentRepository } from "../infrastructure/prisma-order-fulfillment-repository.js";
 
 import {
   InsufficientInventoryError,
@@ -31,20 +33,25 @@ export async function orderRoutes(app: FastifyInstance) {
 
   const skuRepository = new PrismaSKULookupRepository(prisma);
 
+  const allocationRepository = new PrismaOrderAllocationRepository(prisma);
+
+  const fulfillmentRepository = new PrismaOrderFulfillmentRepository(prisma);
+
+  const getOrderUseCase = new GetOrder(repository);
+
   const createOrderUseCase = new CreateOrder(
     repository,
     storeRepository,
     skuRepository,
   );
-  const allocationRepository = new PrismaOrderAllocationRepository(prisma);
-
-  const getOrderUseCase = new GetOrder(repository);
 
   const listOrdersUseCase = new ListOrders(repository);
 
   const confirmOrderUseCase = new ConfirmOrder(repository);
 
   const allocateOrderUseCase = new AllocateOrder(allocationRepository);
+
+  const fulfillOrderUseCase = new FulfillOrder(fulfillmentRepository);
 
   /*
    * CREATE ORDER
@@ -495,6 +502,169 @@ export async function orderRoutes(app: FastifyInstance) {
 
       try {
         const order = await allocateOrderUseCase.execute(
+          request.headers["x-tenant-id"] as string,
+          params.orderId,
+        );
+
+        return reply.status(200).send(order);
+      } catch (error) {
+        if (error instanceof OrderNotFoundError) {
+          return reply.status(404).send({
+            error: error.message,
+          });
+        }
+
+        if (error instanceof InvalidOrderStatusTransitionError) {
+          return reply.status(409).send({
+            error: error.message,
+          });
+        }
+
+        if (error instanceof InsufficientInventoryError) {
+          return reply.status(409).send({
+            error: error.message,
+          });
+        }
+
+        throw error;
+      }
+    },
+  );
+
+  /*
+   * FULFILL ORDER
+   */
+
+  app.post(
+    "/api/v1/orders/:orderId/fulfill",
+    {
+      schema: {
+        tags: ["Orders"],
+        summary: "Fulfill order",
+        description:
+          "Consumes reserved inventory and transitions an allocated order to fulfilled.",
+
+        params: {
+          type: "object",
+          required: ["orderId"],
+          properties: {
+            orderId: {
+              type: "string",
+              format: "uuid",
+            },
+          },
+        },
+
+        response: {
+          200: {
+            type: "object",
+            properties: {
+              id: {
+                type: "string",
+                format: "uuid",
+              },
+              tenantId: {
+                type: "string",
+                format: "uuid",
+              },
+              storeId: {
+                anyOf: [
+                  {
+                    type: "string",
+                    format: "uuid",
+                  },
+                  {
+                    type: "null",
+                  },
+                ],
+              },
+              externalId: {
+                anyOf: [
+                  {
+                    type: "string",
+                  },
+                  {
+                    type: "null",
+                  },
+                ],
+              },
+              status: {
+                type: "string",
+                enum: [
+                  "PENDING",
+                  "CONFIRMED",
+                  "ALLOCATED",
+                  "FULFILLED",
+                  "CANCELLED",
+                ],
+              },
+              createdAt: {
+                type: "string",
+                format: "date-time",
+              },
+              updatedAt: {
+                type: "string",
+                format: "date-time",
+              },
+              items: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    id: {
+                      type: "string",
+                      format: "uuid",
+                    },
+                    orderId: {
+                      type: "string",
+                      format: "uuid",
+                    },
+                    skuId: {
+                      type: "string",
+                      format: "uuid",
+                    },
+                    quantity: {
+                      type: "integer",
+                    },
+                    unitPrice: {
+                      type: "number",
+                    },
+                    createdAt: {
+                      type: "string",
+                      format: "date-time",
+                    },
+                  },
+                },
+              },
+            },
+          },
+
+          404: {
+            type: "object",
+            properties: {
+              error: {
+                type: "string",
+              },
+            },
+          },
+
+          409: {
+            type: "object",
+            properties: {
+              error: {
+                type: "string",
+              },
+            },
+          },
+        },
+      },
+    },
+
+    async (request, reply) => {
+      const params = orderIdParamsSchema.parse(request.params);
+
+      try {
+        const order = await fulfillOrderUseCase.execute(
           request.headers["x-tenant-id"] as string,
           params.orderId,
         );

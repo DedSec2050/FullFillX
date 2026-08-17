@@ -8,10 +8,12 @@ export class GetOrder {
   async execute(tenantId: string, orderId: string) {
     const order = await this.orderRepository.findById(tenantId, orderId);
 
+    console.log("GET ORDER:", tenantId, orderId, order);
     if (!order) {
       throw new OrderNotFoundError();
     }
 
+    console.log("GET ORDER RESULT:", order);
     return order;
   }
 }
