@@ -29,4 +29,10 @@ export interface InventoryRepository {
     inventoryId: string,
     quantity: number,
   ): Promise<Inventory>;
+
+  releaseReservation(
+    warehouseId: string,
+    inventoryId: string,
+    quantity: number,
+  ): Promise<Inventory>;
 }
