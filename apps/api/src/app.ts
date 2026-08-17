@@ -3,6 +3,7 @@ import swaggerPlugin from "./plugins/swagger.js";
 import { productRoutes } from "../../../services/products/presentation/product.routes.js";
 import { skuRoutes } from "../../../services/products/presentation/sku.routes.js";
 import { warehouseRoutes } from "../../../services/warehouse/presentation/warehouse.routes.js";
+import { inventoryRoutes } from "../../../services/inventory/presentation/inventory.routes.js";
 
 export function buildApp() {
   const app = Fastify({
@@ -21,6 +22,7 @@ export function buildApp() {
   app.register(productRoutes);
   app.register(skuRoutes);
   app.register(warehouseRoutes);
+  app.register(inventoryRoutes);
 
   return app;
 }

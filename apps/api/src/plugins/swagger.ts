@@ -34,6 +34,10 @@ const swaggerPlugin: FastifyPluginAsync = async (app) => {
           name: "Warehouses",
           description: "Warehouse management",
         },
+        {
+          name: "Inventory",
+          description: "Inventory management",
+        },
       ],
     },
   });
