@@ -210,4 +210,54 @@ export class PrismaInventoryRepository implements InventoryRepository {
 
     return inventory as Inventory;
   }
+
+  async fulfillReservation(
+    warehouseId: string,
+    inventoryId: string,
+    quantity: number,
+  ): Promise<Inventory> {
+    const result = await this.prisma.inventory.updateMany({
+      where: {
+        id: inventoryId,
+        warehouseId,
+        reserved: {
+          gte: quantity,
+        },
+      },
+
+      data: {
+        reserved: {
+          decrement: quantity,
+        },
+      },
+    });
+
+    if (result.count === 0) {
+      const inventory = await this.prisma.inventory.findFirst({
+        where: {
+          id: inventoryId,
+          warehouseId,
+        },
+      });
+
+      if (!inventory) {
+        throw new InventoryNotFoundError();
+      }
+
+      throw new InsufficientReservedStockError();
+    }
+
+    const inventory = await this.prisma.inventory.findFirst({
+      where: {
+        id: inventoryId,
+        warehouseId,
+      },
+    });
+
+    if (!inventory) {
+      throw new InventoryNotFoundError();
+    }
+
+    return inventory as Inventory;
+  }
 }

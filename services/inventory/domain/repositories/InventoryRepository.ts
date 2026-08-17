@@ -35,4 +35,10 @@ export interface InventoryRepository {
     inventoryId: string,
     quantity: number,
   ): Promise<Inventory>;
+
+  fulfillReservation(
+    warehouseId: string,
+    inventoryId: string,
+    quantity: number,
+  ): Promise<Inventory>;
 }
