@@ -9,6 +9,8 @@ import { AllocateOrder } from "../application/allocate-order.js";
 import { PrismaOrderAllocationRepository } from "../infrastructure/prisma-order-allocation-repository.js";
 import { FulfillOrder } from "../application/fulfill-order.js";
 import { PrismaOrderFulfillmentRepository } from "../infrastructure/prisma-order-fulfillment-repository.js";
+import { CancelOrder } from "../application/cancel-order.js";
+import { PrismaOrderCancellationRepository } from "../infrastructure/prisma-order-cancellation-repository.js";
 
 import {
   InsufficientInventoryError,
@@ -37,6 +39,8 @@ export async function orderRoutes(app: FastifyInstance) {
 
   const fulfillmentRepository = new PrismaOrderFulfillmentRepository(prisma);
 
+  const cancellationRepository = new PrismaOrderCancellationRepository(prisma);
+
   const getOrderUseCase = new GetOrder(repository);
 
   const createOrderUseCase = new CreateOrder(
@@ -53,6 +57,7 @@ export async function orderRoutes(app: FastifyInstance) {
 
   const fulfillOrderUseCase = new FulfillOrder(fulfillmentRepository);
 
+  const cancelOrderUseCase = new CancelOrder(cancellationRepository);
   /*
    * CREATE ORDER
    */
@@ -684,6 +689,174 @@ export async function orderRoutes(app: FastifyInstance) {
         }
 
         if (error instanceof InsufficientInventoryError) {
+          return reply.status(409).send({
+            error: error.message,
+          });
+        }
+
+        throw error;
+      }
+    },
+  );
+
+  /*
+   * Cancellation
+   */
+  app.post(
+    "/api/v1/orders/:orderId/cancel",
+    {
+      schema: {
+        tags: ["Orders"],
+        summary: "Cancel order",
+        description:
+          "Cancels a pending, confirmed, or allocated order. Allocated orders release their reserved inventory.",
+
+        params: {
+          type: "object",
+          required: ["orderId"],
+          properties: {
+            orderId: {
+              type: "string",
+              format: "uuid",
+            },
+          },
+        },
+
+        response: {
+          200: {
+            type: "object",
+            properties: {
+              id: {
+                type: "string",
+                format: "uuid",
+              },
+
+              tenantId: {
+                type: "string",
+                format: "uuid",
+              },
+
+              storeId: {
+                anyOf: [
+                  {
+                    type: "string",
+                    format: "uuid",
+                  },
+                  {
+                    type: "null",
+                  },
+                ],
+              },
+
+              externalId: {
+                anyOf: [
+                  {
+                    type: "string",
+                  },
+                  {
+                    type: "null",
+                  },
+                ],
+              },
+
+              status: {
+                type: "string",
+                enum: [
+                  "PENDING",
+                  "CONFIRMED",
+                  "ALLOCATED",
+                  "FULFILLED",
+                  "CANCELLED",
+                ],
+              },
+
+              createdAt: {
+                type: "string",
+                format: "date-time",
+              },
+
+              updatedAt: {
+                type: "string",
+                format: "date-time",
+              },
+
+              items: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    id: {
+                      type: "string",
+                      format: "uuid",
+                    },
+
+                    orderId: {
+                      type: "string",
+                      format: "uuid",
+                    },
+
+                    skuId: {
+                      type: "string",
+                      format: "uuid",
+                    },
+
+                    quantity: {
+                      type: "integer",
+                    },
+
+                    unitPrice: {
+                      type: "number",
+                    },
+
+                    createdAt: {
+                      type: "string",
+                      format: "date-time",
+                    },
+                  },
+                },
+              },
+            },
+          },
+
+          404: {
+            type: "object",
+            properties: {
+              error: {
+                type: "string",
+              },
+            },
+          },
+
+          409: {
+            type: "object",
+            properties: {
+              error: {
+                type: "string",
+              },
+            },
+          },
+        },
+      },
+    },
+
+    async (request, reply) => {
+      const params = orderIdParamsSchema.parse(request.params);
+
+      try {
+        const order = await cancelOrderUseCase.execute(
+          request.headers["x-tenant-id"] as string,
+          params.orderId,
+        );
+
+        return reply.status(200).send(order);
+      } catch (error) {
+        if (error instanceof OrderNotFoundError) {
+          return reply.status(404).send({
+            error: error.message,
+          });
+        }
+
+        if (error instanceof InvalidOrderStatusTransitionError) {
           return reply.status(409).send({
             error: error.message,
           });
