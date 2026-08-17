@@ -16,7 +16,7 @@ export class PrismaInventoryRepository implements InventoryRepository {
         warehouseId: data.warehouseId,
         skuId: data.skuId,
         available: data.available ?? 0,
-        reserved: data.reserved ?? 0,
+        reserved: 0,
       },
     });
 

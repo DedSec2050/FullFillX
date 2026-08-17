@@ -4,7 +4,6 @@ export interface CreateInventoryData {
   warehouseId: string;
   skuId: string;
   available?: number;
-  reserved?: number;
 }
 
 export interface InventoryRepository {

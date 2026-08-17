@@ -6,6 +6,13 @@ import { CreateInventory } from "../application/create-inventory.js";
 import { GetInventory } from "../application/get-inventory.js";
 import { ListInventory } from "../application/list-inventory.js";
 
+import { PrismaWarehouseLookupRepository } from "../infrastructure/prisma-warehouse-lookup-repository.js";
+import { PrismaSKULookupRepository } from "../infrastructure/prisma-sku-lookup-repository.js";
+
+import {
+  InventoryAlreadyExistsError,
+  InventoryNotFoundError,
+} from "../application/errors.js";
 import { PrismaInventoryRepository } from "../infrastructure/prisma-inventory-repository.js";
 
 import {
@@ -17,7 +24,15 @@ import {
 export async function inventoryRoutes(app: FastifyInstance) {
   const repository = new PrismaInventoryRepository(prisma);
 
-  const createInventoryUseCase = new CreateInventory(repository);
+  const warehouseRepository = new PrismaWarehouseLookupRepository(prisma);
+
+  const skuRepository = new PrismaSKULookupRepository(prisma);
+
+  const createInventoryUseCase = new CreateInventory(
+    repository,
+    warehouseRepository,
+    skuRepository,
+  );
 
   const getInventoryUseCase = new GetInventory(repository);
 
@@ -119,22 +134,70 @@ export async function inventoryRoutes(app: FastifyInstance) {
               },
             },
           },
+
+          404: {
+            description: "Warehouse or SKU not found",
+            type: "object",
+            properties: {
+              error: {
+                type: "string",
+              },
+            },
+          },
+
+          409: {
+            description: "Inventory already exists for this warehouse and SKU",
+            type: "object",
+            properties: {
+              error: {
+                type: "string",
+              },
+            },
+          },
         },
       },
     },
 
     async (request, reply) => {
-      const params = warehouseIdParamsSchema.parse(request.params);
+      try {
+        const params = warehouseIdParamsSchema.parse(request.params);
 
-      const body = createInventorySchema.parse(request.body);
+        const body = createInventorySchema.parse(request.body);
 
-      const inventory = await createInventoryUseCase.execute({
-        warehouseId: params.warehouseId,
-        skuId: body.skuId,
-        available: body.available,
-      });
+        const inventory = await createInventoryUseCase.execute({
+          warehouseId: params.warehouseId,
+          skuId: body.skuId,
+          available: body.available,
+        });
 
-      return reply.status(201).send(inventory);
+        return reply.status(201).send(inventory);
+      } catch (error) {
+        if (error instanceof InventoryAlreadyExistsError) {
+          return reply.status(409).send({
+            error: error.message,
+          });
+        }
+
+        if (
+          error instanceof Error &&
+          (error.message === "Warehouse not found" ||
+            error.message === "SKU not found")
+        ) {
+          return reply.status(404).send({
+            error: error.message,
+          });
+        }
+
+        if (error instanceof InventoryNotFoundError) {
+          return reply.status(404).send({
+            error: error.message,
+          });
+        }
+
+        return reply.status(400).send({
+          error: "Invalid inventory request",
+        });
+      }
     },
   );
 
