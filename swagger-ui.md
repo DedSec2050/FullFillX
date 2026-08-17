@@ -1,82 +1,27 @@
-# FulfillX — Swagger / OpenAPI Documentation Setup
+# FulfillX — Swagger / OpenAPI setup
 
-This guide adds interactive Swagger UI documentation to the FulfillX Fastify API.
+This project exposes Swagger UI at `/docs` using Fastify and the Fastify OpenAPI plugins.
 
-The setup uses:
+Current setup:
 
-- Node.js
-- TypeScript
 - Fastify 5
 - `@fastify/swagger`
 - `@fastify/swagger-ui`
-- OpenAPI 3.0.3
+- Fastify plugin registration for the API app
 
 ---
 
-# 1. Install Swagger Dependencies
+## 1. Swagger plugin
 
-From the project root:
+The OpenAPI plugin is registered in:
 
-```bash
-pnpm add @fastify/swagger @fastify/swagger-ui
+```ts
+apps / api / src / plugins / swagger.ts;
 ```
 
-For Fastify 5, use compatible versions of the Fastify Swagger plugins.
+Current implementation:
 
-Check installed versions:
-
-```bash
-pnpm list fastify @fastify/swagger @fastify/swagger-ui fastify-plugin
-```
-
-Expected major versions:
-
-```text
-fastify              5.x
-@fastify/swagger     9.x
-@fastify/swagger-ui  5.x
-fastify-plugin       6.x
-```
-
-If required:
-
-```bash
-pnpm add @fastify/swagger@^9 @fastify/swagger-ui@^5 fastify-plugin@^6
-```
-
----
-
-# 2. Project Structure
-
-Create a dedicated Swagger plugin:
-
-```text
-apps/
-└── api/
-    └── src/
-        ├── plugins/
-        │   ├── prisma.ts
-        │   └── swagger.ts
-        │
-        ├── app.ts
-        └── server.ts
-```
-
-Swagger configuration should remain separate from the application bootstrap logic.
-
----
-
-# 3. Create the Swagger Plugin
-
-Create:
-
-```text
-apps/api/src/plugins/swagger.ts
-```
-
-Use:
-
-```typescript
+```ts
 import fp from "fastify-plugin";
 import swagger from "@fastify/swagger";
 import swaggerUI from "@fastify/swagger-ui";
@@ -86,49 +31,33 @@ const swaggerPlugin: FastifyPluginAsync = async (app) => {
   await app.register(swagger, {
     openapi: {
       openapi: "3.0.3",
-
       info: {
         title: "FulfillX API",
         description: "Fulfillment and inventory management API",
         version: "1.0.0",
       },
-
       servers: [
         {
           url: "http://localhost:3000",
           description: "Local development",
         },
       ],
-
       tags: [
-        {
-          name: "Products",
-          description: "Product management",
-        },
-        {
-          name: "SKUs",
-          description: "SKU management",
-        },
-        {
-          name: "Warehouses",
-          description: "Warehouse management",
-        },
-        {
-          name: "Inventory",
-          description: "Inventory management",
-        },
+        { name: "Products", description: "Product management" },
+        { name: "SKUs", description: "SKU management" },
+        { name: "Warehouses", description: "Warehouse management" },
+        { name: "Inventory", description: "Inventory management" },
+        { name: "Orders", description: "Order management" },
       ],
     },
   });
 
   await app.register(swaggerUI, {
     routePrefix: "/docs",
-
     uiConfig: {
       docExpansion: "list",
       deepLinking: true,
     },
-
     staticCSP: true,
   });
 };
@@ -140,35 +69,30 @@ export default fp(swaggerPlugin, {
 
 ---
 
-# 4. Register Swagger in the Application
+## 2. App registration order
 
-Swagger should be registered before the API routes.
+The app registers Swagger before route registration in:
 
-Example:
+```ts
+apps / api / src / app.ts;
+```
 
-```typescript
+Current setup:
+
+```ts
 import Fastify from "fastify";
-
 import swaggerPlugin from "./plugins/swagger.js";
-
 import { productRoutes } from "../../../services/products/presentation/product.routes.js";
 import { skuRoutes } from "../../../services/products/presentation/sku.routes.js";
 import { warehouseRoutes } from "../../../services/warehouse/presentation/warehouse.routes.js";
 import { inventoryRoutes } from "../../../services/inventory/presentation/inventory.routes.js";
+import { orderRoutes } from "../../../services/order/presentation/order.routes.js";
 
 export function buildApp() {
-  const app = Fastify({
-    logger: true,
-  });
+  const app = Fastify({ logger: true });
 
-  /*
-   * Register Swagger before routes.
-   */
   app.register(swaggerPlugin);
 
-  /*
-   * Health check
-   */
   app.get("/health", async () => {
     return {
       status: "ok",
@@ -176,929 +100,136 @@ export function buildApp() {
     };
   });
 
-  /*
-   * API routes
-   */
   app.register(productRoutes);
   app.register(skuRoutes);
   app.register(warehouseRoutes);
   app.register(inventoryRoutes);
+  app.register(orderRoutes);
 
   return app;
 }
 ```
 
-The important order is:
-
-```text
-Swagger
-   │
-   ▼
-API Routes
-```
-
-Do not register Swagger after all routes.
+This ensures `/docs` reflects all active routes, including the newest order endpoints.
 
 ---
 
-# 5. Why Route Schemas Are Required
+## 3. Swagger UI
 
-Fastify routes need JSON Schema information for Swagger/OpenAPI to describe:
-
-- Path parameters
-- Headers
-- Request bodies
-- Response bodies
-- Validation rules
-- Status codes
-
-For example:
-
-```typescript
-app.post(
-  "/api/v1/products",
-  {
-    schema: {
-      tags: ["Products"],
-      summary: "Create a product",
-      ...
-    },
-  },
-  async (request, reply) => {
-    ...
-  }
-);
-```
-
-Swagger uses the route's `schema` definition to generate the OpenAPI documentation.
-
----
-
-# 6. Product API Documentation
-
-## Create Product
-
-Add a schema to the Product creation route:
-
-```typescript
-app.post(
-  "/api/v1/products",
-  {
-    schema: {
-      tags: ["Products"],
-
-      summary: "Create a product",
-
-      description: "Creates a new product for the specified tenant.",
-
-      headers: {
-        type: "object",
-
-        required: ["x-tenant-id"],
-
-        properties: {
-          "x-tenant-id": {
-            type: "string",
-            format: "uuid",
-            description: "Tenant UUID",
-          },
-        },
-      },
-
-      body: {
-        type: "object",
-
-        required: ["name"],
-
-        properties: {
-          name: {
-            type: "string",
-            minLength: 1,
-            maxLength: 255,
-            example: "iPhone 15",
-          },
-        },
-      },
-
-      response: {
-        201: {
-          description: "Product created successfully",
-
-          type: "object",
-
-          properties: {
-            id: {
-              type: "string",
-              format: "uuid",
-            },
-
-            tenantId: {
-              type: "string",
-              format: "uuid",
-            },
-
-            name: {
-              type: "string",
-            },
-
-            createdAt: {
-              type: "string",
-              format: "date-time",
-            },
-
-            updatedAt: {
-              type: "string",
-              format: "date-time",
-            },
-          },
-        },
-      },
-    },
-  },
-
-  async (request, reply) => {
-    // Existing implementation
-  },
-);
-```
-
-Swagger will display:
-
-```text
-POST /api/v1/products
-
-Headers
-└── x-tenant-id
-
-Body
-└── name
-
-Response
-├── id
-├── tenantId
-├── name
-├── createdAt
-└── updatedAt
-```
-
----
-
-# 7. List Products
-
-```typescript
-app.get(
-  "/api/v1/products",
-  {
-    schema: {
-      tags: ["Products"],
-
-      summary: "List products",
-
-      description: "Returns all products belonging to the specified tenant.",
-
-      headers: {
-        type: "object",
-
-        required: ["x-tenant-id"],
-
-        properties: {
-          "x-tenant-id": {
-            type: "string",
-            format: "uuid",
-            description: "Tenant UUID",
-          },
-        },
-      },
-
-      response: {
-        200: {
-          description: "Products returned successfully",
-
-          type: "array",
-
-          items: {
-            type: "object",
-
-            properties: {
-              id: {
-                type: "string",
-                format: "uuid",
-              },
-
-              tenantId: {
-                type: "string",
-                format: "uuid",
-              },
-
-              name: {
-                type: "string",
-              },
-
-              createdAt: {
-                type: "string",
-                format: "date-time",
-              },
-
-              updatedAt: {
-                type: "string",
-                format: "date-time",
-              },
-            },
-          },
-        },
-      },
-    },
-  },
-
-  async (request, reply) => {
-    // Existing implementation
-  },
-);
-```
-
----
-
-# 8. Get Product
-
-```typescript
-app.get(
-  "/api/v1/products/:productId",
-  {
-    schema: {
-      tags: ["Products"],
-
-      summary: "Get product",
-
-      description: "Returns a product by its ID.",
-
-      params: {
-        type: "object",
-
-        required: ["productId"],
-
-        properties: {
-          productId: {
-            type: "string",
-            format: "uuid",
-            description: "Product UUID",
-          },
-        },
-      },
-
-      headers: {
-        type: "object",
-
-        required: ["x-tenant-id"],
-
-        properties: {
-          "x-tenant-id": {
-            type: "string",
-            format: "uuid",
-            description: "Tenant UUID",
-          },
-        },
-      },
-
-      response: {
-        200: {
-          description: "Product found",
-
-          type: "object",
-
-          properties: {
-            id: {
-              type: "string",
-              format: "uuid",
-            },
-
-            tenantId: {
-              type: "string",
-              format: "uuid",
-            },
-
-            name: {
-              type: "string",
-            },
-
-            createdAt: {
-              type: "string",
-              format: "date-time",
-            },
-
-            updatedAt: {
-              type: "string",
-              format: "date-time",
-            },
-          },
-        },
-
-        404: {
-          description: "Product not found",
-        },
-      },
-    },
-  },
-
-  async (request, reply) => {
-    // Existing implementation
-  },
-);
-```
-
----
-
-# 9. SKU API Documentation
-
-## Create SKU
-
-The `productId` comes from the URL.
-
-The SKU request body contains only:
-
-```json
-{
-  "sku": "IPHONE15-BLK-128",
-  "name": "iPhone 15 Black 128GB"
-}
-```
-
-Route:
-
-```typescript
-app.post(
-  "/api/v1/products/:productId/skus",
-  {
-    schema: {
-      tags: ["SKUs"],
-
-      summary: "Create SKU",
-
-      description: "Creates a SKU belonging to an existing product.",
-
-      params: {
-        type: "object",
-
-        required: ["productId"],
-
-        properties: {
-          productId: {
-            type: "string",
-            format: "uuid",
-            description: "Product UUID",
-          },
-        },
-      },
-
-      body: {
-        type: "object",
-
-        required: ["sku", "name"],
-
-        properties: {
-          sku: {
-            type: "string",
-            minLength: 1,
-            maxLength: 100,
-            example: "IPHONE15-BLK-128",
-          },
-
-          name: {
-            type: "string",
-            minLength: 1,
-            maxLength: 255,
-            example: "iPhone 15 Black 128GB",
-          },
-        },
-      },
-
-      response: {
-        201: {
-          description: "SKU created successfully",
-
-          type: "object",
-
-          properties: {
-            id: {
-              type: "string",
-              format: "uuid",
-            },
-
-            productId: {
-              type: "string",
-              format: "uuid",
-            },
-
-            sku: {
-              type: "string",
-            },
-
-            name: {
-              type: "string",
-            },
-
-            createdAt: {
-              type: "string",
-              format: "date-time",
-            },
-
-            updatedAt: {
-              type: "string",
-              format: "date-time",
-            },
-          },
-        },
-
-        409: {
-          description: "SKU already exists for this product",
-        },
-      },
-    },
-  },
-
-  async (request, reply) => {
-    // Existing implementation
-  },
-);
-```
-
----
-
-# 10. List SKUs
-
-```typescript
-app.get(
-  "/api/v1/products/:productId/skus",
-  {
-    schema: {
-      tags: ["SKUs"],
-
-      summary: "List SKUs",
-
-      description: "Returns all SKUs belonging to a product.",
-
-      params: {
-        type: "object",
-
-        required: ["productId"],
-
-        properties: {
-          productId: {
-            type: "string",
-            format: "uuid",
-            description: "Product UUID",
-          },
-        },
-      },
-
-      response: {
-        200: {
-          description: "SKUs returned successfully",
-
-          type: "array",
-
-          items: {
-            type: "object",
-
-            properties: {
-              id: {
-                type: "string",
-                format: "uuid",
-              },
-
-              productId: {
-                type: "string",
-                format: "uuid",
-              },
-
-              sku: {
-                type: "string",
-              },
-
-              name: {
-                type: "string",
-              },
-
-              createdAt: {
-                type: "string",
-                format: "date-time",
-              },
-
-              updatedAt: {
-                type: "string",
-                format: "date-time",
-              },
-            },
-          },
-        },
-      },
-    },
-  },
-
-  async (request, reply) => {
-    // Existing implementation
-  },
-);
-```
-
----
-
-# 11. Start the API
-
-From the project root:
-
-```bash
-pnpm dev
-```
-
-Expected:
-
-```text
-Server listening at http://localhost:3000
-```
-
----
-
-# 12. Open Swagger UI
-
-Open:
+Open the docs here:
 
 ```text
 http://localhost:3000/docs
 ```
 
-Swagger UI should display:
+The generated UI includes these domain groups:
 
 ```text
-FulfillX API
-1.0.0
-
-Products
-├── POST /api/v1/products
-├── GET  /api/v1/products
-└── GET  /api/v1/products/{productId}
-
-SKUs
-├── POST /api/v1/products/{productId}/skus
-└── GET  /api/v1/products/{productId}/skus
-
-Warehouses
-├── POST /api/v1/warehouses
-├── GET  /api/v1/warehouses
-└── GET  /api/v1/warehouses/{warehouseId}
-
-Inventory
-├── POST /api/v1/warehouses/{warehouseId}/inventory
-├── GET  /api/v1/warehouses/{warehouseId}/inventory
-├── GET  /api/v1/warehouses/{warehouseId}/inventory/{inventoryId}
-├── POST /api/v1/warehouses/{warehouseId}/inventory/{inventoryId}/add-stock
-└── POST /api/v1/warehouses/{warehouseId}/inventory/{inventoryId}/reserve
-```
-
-You can use:
-
-```text
-Try it out
-    ↓
-Enter parameters
-    ↓
-Execute
-```
-
-to call the local API directly.
-
----
-
-# 13. Generated OpenAPI Specification
-
-The Swagger plugin also exposes the generated OpenAPI specification.
-
-JSON:
-
-```text
-http://localhost:3000/docs/json
-```
-
-YAML:
-
-```text
-http://localhost:3000/docs/yaml
-```
-
-These can be used with:
-
-- Postman
-- Insomnia
-- API clients
-- OpenAPI generators
-- Frontend SDK generators
-- CI/CD API validation
-
----
-
-# 14. Swagger Route Structure
-
-The final API documentation structure should look like:
-
-```text
-FulfillX API
-│
-├── Products
-│   │
-│   ├── POST /api/v1/products
-│   │      Create Product
-│   │
-│   ├── GET /api/v1/products
-│   │      List Products
-│   │
-│   └── GET /api/v1/products/:productId
-│          Get Product
-│
-├── SKUs
-│   │
-│   ├── POST /api/v1/products/:productId/skus
-│   │      Create SKU
-│   │
-│   └── GET /api/v1/products/:productId/skus
-│          List SKUs
-│
-├── Warehouses
-│   │
-│   ├── POST /api/v1/warehouses
-│   │      Create Warehouse
-│   │
-│   ├── GET /api/v1/warehouses
-│   │      List Warehouses
-│   │
-│   └── GET /api/v1/warehouses/:warehouseId
-│          Get Warehouse
-│
-└── Inventory
-    │
-    ├── POST /api/v1/warehouses/:warehouseId/inventory
-    │      Create Inventory
-    │
-    ├── GET /api/v1/warehouses/:warehouseId/inventory
-    │      List Inventory
-    │
-    ├── GET /api/v1/warehouses/:warehouseId/inventory/:inventoryId
-    │      Get Inventory
-    │
-    ├── POST /api/v1/warehouses/:warehouseId/inventory/:inventoryId/add-stock
-    │      Add Stock
-    │
-    └── POST /api/v1/warehouses/:warehouseId/inventory/:inventoryId/reserve
-           Reserve Stock
-```
-
----
-
-# 15. Current Demo Data
-
-## Tenant
-
-```text
-Name:
-Test Merchant
-
-ID:
-550e8400-e29b-41d4-a716-446655440000
-```
-
-## Product
-
-```text
-Name:
-iPhone 15
-
-ID:
-2ad818aa-a7b7-407c-ba82-bb1f1e91955c
-```
-
-## SKU
-
-```text
-Name:
-iPhone 15 Black 128GB
-
-SKU:
-IPHONE15-BLK-128
-
-ID:
-cc32158b-8812-44dd-88b1-84bb02d03a9c
-```
-
----
-
-# 16. Testing Through Swagger UI
-
-## Create Product
-
-In Swagger:
-
-```text
-Products
-    ↓
-POST /api/v1/products
-    ↓
-Try it out
-```
-
-Header:
-
-```text
-x-tenant-id:
-550e8400-e29b-41d4-a716-446655440000
-```
-
-Body:
-
-```json
-{
-  "name": "MacBook Air M4"
-}
-```
-
-Click:
-
-```text
-Execute
-```
-
----
-
-## Create SKU
-
-Open:
-
-```text
-SKUs
-    ↓
-POST /api/v1/products/{productId}/skus
-    ↓
-Try it out
-```
-
-Set:
-
-```text
-productId:
-2ad818aa-a7b7-407c-ba82-bb1f1e91955c
-```
-
-Body:
-
-```json
-{
-  "sku": "IPHONE15-BLU-128",
-  "name": "iPhone 15 Blue 128GB"
-}
-```
-
-Click:
-
-```text
-Execute
-```
-
----
-
-# 17. Zod vs Swagger Schemas
-
-FulfillX currently has two schema systems:
-
-```text
-                    Request
-                       │
-             ┌─────────┴─────────┐
-             │                   │
-             ▼                   ▼
-           Zod             Fastify JSON Schema
-             │                   │
-             ▼                   ▼
-       Runtime Validation    OpenAPI/Swagger
-```
-
-Zod is responsible for runtime validation.
-
-Fastify JSON Schema is used by Swagger/OpenAPI for API documentation and Fastify's schema system.
-
-For example:
-
-```typescript
-const createSKUSchema = z.object({
-  sku: z.string().trim().min(1).max(100),
-  name: z.string().trim().min(1).max(255),
-});
-```
-
-while the Swagger schema describes the same request:
-
-```typescript
-body: {
-  type: "object",
-
-  required: ["sku", "name"],
-
-  properties: {
-    sku: {
-      type: "string",
-      minLength: 1,
-      maxLength: 100,
-    },
-
-    name: {
-      type: "string",
-      minLength: 1,
-      maxLength: 255,
-    },
-  },
-}
-```
-
-For the current small API this is acceptable.
-
-As the application grows, consider using a schema integration approach that allows the validation schema to be the single source of truth.
-
----
-
-# 18. Important Registration Order
-
-The application should register plugins in this order:
-
-```text
-Fastify
-   │
-   ▼
-Core Plugins
-   │
-   ├── Prisma
-   ├── Error Handler
-   └── Swagger
-   │
-   ▼
-Routes
-   │
-   ├── Product Routes
-   ├── SKU Routes
-   ├── Warehouse Routes
-   ├── Inventory Routes
-   └── Order Routes
-```
-
-Swagger should be registered before the routes that need to be included in the generated OpenAPI specification.
-
----
-
-# 19. Recommended Future Documentation Structure
-
-As FulfillX grows, add tags for each domain:
-
-```typescript
-tags: [
-  {
-    name: "Products",
-    description: "Product management",
-  },
-
-  {
-    name: "SKUs",
-    description: "SKU management",
-  },
-
-  {
-    name: "Warehouses",
-    description: "Warehouse management",
-  },
-
-  {
-    name: "Inventory",
-    description: "Inventory management",
-  },
-
-  {
-    name: "Orders",
-    description: "Order management",
-  },
-
-  {
-    name: "Users",
-    description: "User management",
-  },
-];
-```
-
-This will produce a clean Swagger UI:
-
-```text
-FulfillX API
-
 Products
 SKUs
 Warehouses
 Inventory
 Orders
-Users
 ```
+
+The current routes exposed in the generated OpenAPI document include:
+
+```text
+GET    /health
+POST   /api/v1/products
+GET    /api/v1/products
+GET    /api/v1/products/:id
+POST   /api/v1/products/:productId/skus
+GET    /api/v1/products/:productId/skus
+POST   /api/v1/warehouses
+GET    /api/v1/warehouses
+GET    /api/v1/warehouses/:warehouseId
+POST   /api/v1/warehouses/:warehouseId/inventory
+GET    /api/v1/warehouses/:warehouseId/inventory
+GET    /api/v1/warehouses/:warehouseId/inventory/:inventoryId
+POST   /api/v1/warehouses/:warehouseId/inventory/:inventoryId/add-stock
+POST   /api/v1/warehouses/:warehouseId/inventory/:inventoryId/reserve
+POST   /api/v1/warehouses/:warehouseId/inventory/:inventoryId/release
+POST   /api/v1/warehouses/:warehouseId/inventory/:inventoryId/fulfill
+POST   /api/v1/orders
+GET    /api/v1/orders
+GET    /api/v1/orders/:orderId
+POST   /api/v1/orders/:orderId/confirm
+POST   /api/v1/orders/:orderId/allocate
+POST   /api/v1/orders/:orderId/fulfill
+```
+
+---
+
+## 4. Current schema conventions
+
+The routes use Fastify JSON Schema for Swagger metadata, while runtime validation is still handled separately in Zod in the route modules.
+
+Example pattern:
+
+```ts
+app.post("/api/v1/orders", {
+  schema: {
+    tags: ["Orders"],
+    summary: "Create an order",
+    description: "Creates a new order in PENDING status.",
+    headers: {
+      type: "object",
+      required: ["x-tenant-id"],
+      properties: {
+        "x-tenant-id": { type: "string", format: "uuid" },
+      },
+    },
+    body: {
+      type: "object",
+      required: ["storeId", "externalId", "items"],
+      properties: {
+        storeId: { type: "string", format: "uuid" },
+        externalId: { type: "string" },
+        items: {
+          type: "array",
+          items: {
+            type: "object",
+            required: ["skuId", "quantity", "unitPrice"],
+            properties: {
+              skuId: { type: "string", format: "uuid" },
+              quantity: { type: "integer", minimum: 1 },
+              unitPrice: { type: "number", minimum: 0 },
+            },
+          },
+        },
+      },
+    },
+    response: {
+      201: { description: "Order created successfully", type: "object" },
+      400: { description: "Invalid order request", type: "object" },
+      404: { description: "Store or SKU not found", type: "object" },
+    },
+  },
+});
+```
+
+---
+
+## 5. OpenAPI spec endpoints
+
+The generated OpenAPI documents are available here:
+
+```text
+http://localhost:3000/docs/json
+http://localhost:3000/docs/yaml
+```
+
+These are the raw outputs used by clients, docs generators, and external tooling.
+
+---
+
+## 6. Notes for the current codebase
+
+- Swagger is intentionally documented alongside the route schema and not as a separate, static spec file.
+- The project currently uses the `x-tenant-id` header for tenant-based access in product, warehouse, and order flows.
+- Inventory routes are warehouse-scoped and allow stock transitions such as add, reserve, release, and fulfill.
+- Order routes are now part of the public Swagger docs and should stay in sync with the route implementations.
 
 ---
 
