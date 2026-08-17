@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 
 import type { Order } from "../domain/entities/Order.js";
 
@@ -6,6 +6,7 @@ import type {
   CreateOrderData,
   OrderRepository,
 } from "../domain/repositories/OrderRepository.js";
+import { OrderAlreadyExistsError } from "../application/errors.js";
 
 export class PrismaOrderRepository implements OrderRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -32,29 +33,40 @@ export class PrismaOrderRepository implements OrderRepository {
   }
 
   async create(data: CreateOrderData): Promise<Order> {
-    const order = await this.prisma.order.create({
-      data: {
-        tenantId: data.tenantId,
-        storeId: data.storeId,
-        externalId: data.externalId,
+    try {
+      const order = await this.prisma.order.create({
+        data: {
+          tenantId: data.tenantId,
+          storeId: data.storeId,
+          externalId: data.externalId,
 
-        status: "PENDING",
+          status: "PENDING",
 
-        items: {
-          create: data.items.map((item) => ({
-            skuId: item.skuId,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-          })),
+          items: {
+            create: data.items.map((item) => ({
+              skuId: item.skuId,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+            })),
+          },
         },
-      },
 
-      include: {
-        items: true,
-      },
-    });
+        include: {
+          items: true,
+        },
+      });
 
-    return this.toDomain(order);
+      return this.toDomain(order);
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        throw new OrderAlreadyExistsError();
+      }
+
+      throw error;
+    }
   }
 
   async findById(tenantId: string, orderId: string): Promise<Order | null> {

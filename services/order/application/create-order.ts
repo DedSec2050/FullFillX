@@ -14,6 +14,7 @@ import {
   OrderMustHaveItemsError,
   StoreNotFoundError,
   SKUNotFoundError,
+  OrderAlreadyExistsError,
 } from "./errors.js";
 
 export class CreateOrder {

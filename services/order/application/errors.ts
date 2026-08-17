@@ -47,3 +47,10 @@ export class InsufficientInventoryError extends Error {
     this.name = "InsufficientInventoryError";
   }
 }
+
+export class OrderAlreadyExistsError extends Error {
+  constructor() {
+    super("Order already exists");
+    this.name = "OrderAlreadyExistsError";
+  }
+}

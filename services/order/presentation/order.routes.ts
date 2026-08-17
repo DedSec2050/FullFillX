@@ -15,6 +15,7 @@ import { PrismaOrderCancellationRepository } from "../infrastructure/prisma-orde
 import {
   InsufficientInventoryError,
   InvalidOrderStatusTransitionError,
+  OrderAlreadyExistsError,
   OrderMustHaveItemsError,
   OrderNotFoundError,
   SKUNotFoundError,
@@ -152,6 +153,17 @@ export async function orderRoutes(app: FastifyInstance) {
               },
             },
           },
+
+          409: {
+            description:
+              "Order with the same external ID already exists for this tenant",
+            type: "object",
+            properties: {
+              error: {
+                type: "string",
+              },
+            },
+          },
         },
       },
     },
@@ -194,6 +206,11 @@ export async function orderRoutes(app: FastifyInstance) {
 
         if (error instanceof OrderMustHaveItemsError) {
           return reply.status(400).send({
+            error: error.message,
+          });
+        }
+        if (error instanceof OrderAlreadyExistsError) {
+          return reply.status(409).send({
             error: error.message,
           });
         }

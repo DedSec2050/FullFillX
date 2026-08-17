@@ -144,7 +144,7 @@ model Order {
   @@index([tenantId])
   @@index([status])
   @@index([storeId])
-  @@index([externalId])
+  @@unique([tenantId, externalId])
 }
 
 model OrderItem {
