@@ -3,7 +3,6 @@ import type { PrismaClient } from "@prisma/client";
 import type { Order } from "../domain/entities/Order.js";
 
 import {
-  InsufficientInventoryError,
   InvalidOrderStatusTransitionError,
   OrderNotFoundError,
 } from "../application/errors.js";
@@ -32,47 +31,58 @@ export class PrismaOrderFulfillmentRepository {
       }
 
       for (const item of order.items) {
-        const inventories = await tx.inventory.findMany({
+        /*
+         * Find the exact inventory reservation created
+         * during allocation.
+         */
+        const reservation = await tx.reservation.findUnique({
           where: {
-            skuId: item.skuId,
-            status: "ACTIVE",
-            reserved: {
-              gte: item.quantity,
-            },
-          },
-          orderBy: {
-            reserved: "desc",
+            orderItemId: item.id,
           },
         });
 
-        let fulfilled = false;
-
-        for (const inventory of inventories) {
-          const updated = await tx.inventory.updateMany({
-            where: {
-              id: inventory.id,
-              reserved: {
-                gte: item.quantity,
-              },
-            },
-            data: {
-              reserved: {
-                decrement: item.quantity,
-              },
-            },
-          });
-
-          if (updated.count === 1) {
-            fulfilled = true;
-            break;
-          }
+        if (!reservation) {
+          throw new Error(`Reservation not found for order item ${item.id}`);
         }
 
-        if (!fulfilled) {
-          throw new InsufficientInventoryError(item.skuId, item.quantity);
+        /*
+         * Consume the reserved inventory.
+         *
+         * available does NOT change here because it was
+         * already decreased during allocation.
+         */
+        const updated = await tx.inventory.updateMany({
+          where: {
+            id: reservation.inventoryId,
+            reserved: {
+              gte: reservation.quantity,
+            },
+          },
+          data: {
+            reserved: {
+              decrement: reservation.quantity,
+            },
+          },
+        });
+
+        if (updated.count !== 1) {
+          throw new Error(`Unable to consume reservation ${reservation.id}`);
         }
+
+        /*
+         * The reservation has now been consumed.
+         */
+        await tx.reservation.delete({
+          where: {
+            id: reservation.id,
+          },
+        });
       }
 
+      /*
+       * Only after every reservation has been consumed
+       * do we mark the order as fulfilled.
+       */
       return tx.order.update({
         where: {
           id: order.id,

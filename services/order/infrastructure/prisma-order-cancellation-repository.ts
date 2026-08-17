@@ -30,7 +30,7 @@ export class PrismaOrderCancellationRepository {
        * PENDING and CONFIRMED can be cancelled
        * without touching inventory.
        *
-       * ALLOCATED requires inventory release.
+       * ALLOCATED requires releasing its reservations.
        *
        * FULFILLED and CANCELLED cannot be cancelled.
        */
@@ -43,57 +43,68 @@ export class PrismaOrderCancellationRepository {
       }
 
       /*
-       * Only an allocated order has reserved inventory.
+       * Only ALLOCATED orders have reservations.
        */
       if (order.status === "ALLOCATED") {
         for (const item of order.items) {
-          const inventories = await tx.inventory.findMany({
+          /*
+           * Find the exact reservation belonging
+           * to this order item.
+           */
+          const reservation = await tx.reservation.findUnique({
             where: {
-              skuId: item.skuId,
-              status: "ACTIVE",
-              reserved: {
-                gte: item.quantity,
-              },
-            },
-            orderBy: {
-              reserved: "desc",
+              orderItemId: item.id,
             },
           });
 
-          let released = false;
-
-          for (const inventory of inventories) {
-            const updated = await tx.inventory.updateMany({
-              where: {
-                id: inventory.id,
-                reserved: {
-                  gte: item.quantity,
-                },
-              },
-              data: {
-                available: {
-                  increment: item.quantity,
-                },
-                reserved: {
-                  decrement: item.quantity,
-                },
-              },
-            });
-
-            if (updated.count === 1) {
-              released = true;
-              break;
-            }
+          if (!reservation) {
+            throw new Error(`Reservation not found for order item ${item.id}`);
           }
 
-          if (!released) {
-            throw new Error(
-              `Unable to release inventory for SKU ${item.skuId}`,
-            );
+          /*
+           * Release the exact inventory record that
+           * was reserved during allocation.
+           *
+           * available += reserved quantity
+           * reserved  -= reserved quantity
+           */
+          const updated = await tx.inventory.updateMany({
+            where: {
+              id: reservation.inventoryId,
+              reserved: {
+                gte: reservation.quantity,
+              },
+            },
+            data: {
+              available: {
+                increment: reservation.quantity,
+              },
+              reserved: {
+                decrement: reservation.quantity,
+              },
+            },
+          });
+
+          if (updated.count !== 1) {
+            throw new Error(`Unable to release reservation ${reservation.id}`);
           }
+
+          /*
+           * The reservation has now been released,
+           * so remove it.
+           */
+          await tx.reservation.delete({
+            where: {
+              id: reservation.id,
+            },
+          });
         }
       }
 
+      /*
+       * Only mark the order as cancelled after every
+       * inventory operation has succeeded.
+       */
       const cancelledOrder = await tx.order.update({
         where: {
           id: order.id,

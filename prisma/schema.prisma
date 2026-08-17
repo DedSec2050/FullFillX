@@ -119,8 +119,9 @@ model Inventory {
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
-  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
-  sku       SKU       @relation(fields: [skuId], references: [id], onDelete: Cascade)
+  warehouse    Warehouse     @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  sku          SKU           @relation(fields: [skuId], references: [id], onDelete: Cascade)
+  reservations Reservation[]
 
   @@unique([warehouseId, skuId])
   @@index([skuId])
@@ -154,9 +155,24 @@ model OrderItem {
   unitPrice Decimal  @db.Decimal(12, 2)
   createdAt DateTime @default(now())
 
-  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  sku   SKU   @relation(fields: [skuId], references: [id], onDelete: Restrict)
+  order       Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  sku         SKU          @relation(fields: [skuId], references: [id], onDelete: Restrict)
+  reservation Reservation?
 
   @@index([orderId])
   @@index([skuId])
+}
+
+model Reservation {
+  id          String   @id @default(uuid())
+  orderItemId String   @unique
+  inventoryId String
+  quantity    Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  inventory Inventory @relation(fields: [inventoryId], references: [id], onDelete: Restrict)
+
+  @@index([inventoryId])
 }

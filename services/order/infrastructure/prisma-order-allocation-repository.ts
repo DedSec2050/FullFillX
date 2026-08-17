@@ -71,6 +71,13 @@ export class PrismaOrderAllocationRepository {
           });
 
           if (updated.count === 1) {
+            await tx.reservation.create({
+              data: {
+                orderItemId: item.id,
+                inventoryId: inventory.id,
+                quantity: item.quantity,
+              },
+            });
             reserved = true;
             break;
           }
