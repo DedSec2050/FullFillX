@@ -1,0 +1,64 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap");
+
+:root {
+  --text: #0e1b2e;
+  --muted: #4a6178;
+  --bg: #f2eee8;
+  --panel: #fffdf8;
+  --border: #d9cfbf;
+  --border-strong: #bcae9a;
+  --accent: #0366d6;
+  --accent-2: #00b09b;
+  --focus: #f57e22;
+
+  font-family: "Space Grotesk", "Segoe UI", sans-serif;
+  line-height: 1.45;
+  font-weight: 400;
+  color: var(--text);
+  background: var(--bg);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background:
+    linear-gradient(175deg, rgba(245, 126, 34, 0.1), transparent 35%),
+    radial-gradient(circle at 85% 0%, rgba(0, 176, 155, 0.13), transparent 32%),
+    var(--bg);
+}
+
+h1,
+h2,
+label,
+button {
+  font-family: "Space Grotesk", "Segoe UI", sans-serif;
+}
+
+h1 {
+  font-size: clamp(1.85rem, 2.8vw, 2.7rem);
+  line-height: 1.07;
+}
+
+h2 {
+  font-size: clamp(1.1rem, 1.5vw, 1.45rem);
+}
+
+p,
+li,
+input,
+select,
+pre {
+  font-family: "IBM Plex Mono", Consolas, monospace;
+}
