@@ -6,11 +6,13 @@ import { CreateInventory } from "../application/create-inventory.js";
 import { GetInventory } from "../application/get-inventory.js";
 import { ListInventory } from "../application/list-inventory.js";
 import { AddStock } from "../application/add-stock.js";
+import { ReserveStock } from "../application/reserve-stock.js";
 
 import { PrismaWarehouseLookupRepository } from "../infrastructure/prisma-warehouse-lookup-repository.js";
 import { PrismaSKULookupRepository } from "../infrastructure/prisma-sku-lookup-repository.js";
 
 import {
+  InsufficientStockError,
   InventoryAlreadyExistsError,
   InventoryNotFoundError,
 } from "../application/errors.js";
@@ -41,6 +43,8 @@ export async function inventoryRoutes(app: FastifyInstance) {
   const listInventoryUseCase = new ListInventory(repository);
 
   const addStockUseCase = new AddStock(repository);
+
+  const reserveStockUseCase = new ReserveStock(repository);
 
   /*
    * CREATE INVENTORY
@@ -509,6 +513,147 @@ export async function inventoryRoutes(app: FastifyInstance) {
       } catch (error) {
         if (error instanceof InventoryNotFoundError) {
           return reply.status(404).send({
+            error: error.message,
+          });
+        }
+
+        throw error;
+      }
+    },
+  );
+
+  /*
+   * RESERVE STOCK
+   */
+
+  app.post(
+    "/api/v1/warehouses/:warehouseId/inventory/:inventoryId/reserve",
+    {
+      schema: {
+        tags: ["Inventory"],
+        summary: "Reserve stock",
+        description: "Reserves available stock from an inventory record.",
+
+        params: {
+          type: "object",
+          required: ["warehouseId", "inventoryId"],
+          properties: {
+            warehouseId: {
+              type: "string",
+              format: "uuid",
+            },
+
+            inventoryId: {
+              type: "string",
+              format: "uuid",
+            },
+          },
+        },
+
+        body: {
+          type: "object",
+          required: ["quantity"],
+          properties: {
+            quantity: {
+              type: "integer",
+              minimum: 1,
+              description: "Quantity of stock to reserve",
+            },
+          },
+        },
+
+        response: {
+          200: {
+            description: "Stock reserved successfully",
+            type: "object",
+            properties: {
+              id: {
+                type: "string",
+                format: "uuid",
+              },
+
+              warehouseId: {
+                type: "string",
+                format: "uuid",
+              },
+
+              skuId: {
+                type: "string",
+                format: "uuid",
+              },
+
+              available: {
+                type: "integer",
+              },
+
+              reserved: {
+                type: "integer",
+              },
+
+              status: {
+                type: "string",
+                enum: ["ACTIVE", "INACTIVE"],
+              },
+
+              createdAt: {
+                type: "string",
+                format: "date-time",
+              },
+
+              updatedAt: {
+                type: "string",
+                format: "date-time",
+              },
+            },
+          },
+
+          404: {
+            description: "Inventory not found",
+            type: "object",
+            properties: {
+              error: {
+                type: "string",
+              },
+            },
+          },
+
+          409: {
+            description: "Insufficient available stock",
+            type: "object",
+            properties: {
+              error: {
+                type: "string",
+              },
+            },
+          },
+        },
+      },
+    },
+
+    async (request, reply) => {
+      const params = inventoryIdParamsSchema.parse(request.params);
+
+      const body = stockOperationSchema.parse(request.body);
+
+      try {
+        const inventory = await reserveStockUseCase.execute({
+          warehouseId: params.warehouseId,
+
+          inventoryId: params.inventoryId,
+
+          quantity: body.quantity,
+        });
+
+        return reply.status(200).send(inventory);
+      } catch (error) {
+        if (error instanceof InventoryNotFoundError) {
+          return reply.status(404).send({
+            error: error.message,
+          });
+        }
+
+        if (error instanceof InsufficientStockError) {
+          return reply.status(409).send({
             error: error.message,
           });
         }

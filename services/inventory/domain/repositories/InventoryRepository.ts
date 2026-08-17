@@ -23,4 +23,10 @@ export interface InventoryRepository {
     inventoryId: string,
     quantity: number,
   ): Promise<Inventory>;
+
+  reserveStock(
+    warehouseId: string,
+    inventoryId: string,
+    quantity: number,
+  ): Promise<Inventory>;
 }

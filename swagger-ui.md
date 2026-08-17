@@ -109,6 +109,14 @@ const swaggerPlugin: FastifyPluginAsync = async (app) => {
           name: "SKUs",
           description: "SKU management",
         },
+        {
+          name: "Warehouses",
+          description: "Warehouse management",
+        },
+        {
+          name: "Inventory",
+          description: "Inventory management",
+        },
       ],
     },
   });
@@ -145,6 +153,8 @@ import swaggerPlugin from "./plugins/swagger.js";
 
 import { productRoutes } from "../../../services/products/presentation/product.routes.js";
 import { skuRoutes } from "../../../services/products/presentation/sku.routes.js";
+import { warehouseRoutes } from "../../../services/warehouse/presentation/warehouse.routes.js";
+import { inventoryRoutes } from "../../../services/inventory/presentation/inventory.routes.js";
 
 export function buildApp() {
   const app = Fastify({
@@ -171,6 +181,8 @@ export function buildApp() {
    */
   app.register(productRoutes);
   app.register(skuRoutes);
+  app.register(warehouseRoutes);
+  app.register(inventoryRoutes);
 
   return app;
 }
@@ -728,6 +740,18 @@ Products
 SKUs
 ├── POST /api/v1/products/{productId}/skus
 └── GET  /api/v1/products/{productId}/skus
+
+Warehouses
+├── POST /api/v1/warehouses
+├── GET  /api/v1/warehouses
+└── GET  /api/v1/warehouses/{warehouseId}
+
+Inventory
+├── POST /api/v1/warehouses/{warehouseId}/inventory
+├── GET  /api/v1/warehouses/{warehouseId}/inventory
+├── GET  /api/v1/warehouses/{warehouseId}/inventory/{inventoryId}
+├── POST /api/v1/warehouses/{warehouseId}/inventory/{inventoryId}/add-stock
+└── POST /api/v1/warehouses/{warehouseId}/inventory/{inventoryId}/reserve
 ```
 
 You can use:
@@ -789,13 +813,41 @@ FulfillX API
 │   └── GET /api/v1/products/:productId
 │          Get Product
 │
-└── SKUs
+├── SKUs
+│   │
+│   ├── POST /api/v1/products/:productId/skus
+│   │      Create SKU
+│   │
+│   └── GET /api/v1/products/:productId/skus
+│          List SKUs
+│
+├── Warehouses
+│   │
+│   ├── POST /api/v1/warehouses
+│   │      Create Warehouse
+│   │
+│   ├── GET /api/v1/warehouses
+│   │      List Warehouses
+│   │
+│   └── GET /api/v1/warehouses/:warehouseId
+│          Get Warehouse
+│
+└── Inventory
     │
-    ├── POST /api/v1/products/:productId/skus
-    │      Create SKU
+    ├── POST /api/v1/warehouses/:warehouseId/inventory
+    │      Create Inventory
     │
-    └── GET /api/v1/products/:productId/skus
-           List SKUs
+    ├── GET /api/v1/warehouses/:warehouseId/inventory
+    │      List Inventory
+    │
+    ├── GET /api/v1/warehouses/:warehouseId/inventory/:inventoryId
+    │      Get Inventory
+    │
+    ├── POST /api/v1/warehouses/:warehouseId/inventory/:inventoryId/add-stock
+    │      Add Stock
+    │
+    └── POST /api/v1/warehouses/:warehouseId/inventory/:inventoryId/reserve
+           Reserve Stock
 ```
 
 ---
@@ -1062,11 +1114,25 @@ SKU API
     ├── Create SKU           ✅
     └── List SKUs            ✅
 
+Warehouse API
+    ├── Create Warehouse     ✅
+    ├── List Warehouses      ✅
+    └── Get Warehouse        ✅
+
+Inventory API
+    ├── Create Inventory     ✅
+    ├── List Inventory       ✅
+    ├── Get Inventory        ✅
+    ├── Add Stock            ✅
+    └── Reserve Stock        ✅
+
 Swagger
     ├── OpenAPI configuration
     ├── Swagger UI
     ├── Product schemas
-    └── SKU schemas
+    ├── SKU schemas
+    ├── Warehouse schemas
+    └── Inventory schemas
 ```
 
 The next domains can follow the same documentation pattern:
