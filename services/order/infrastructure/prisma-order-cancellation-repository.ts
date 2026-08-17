@@ -30,7 +30,7 @@ export class PrismaOrderCancellationRepository {
        * PENDING and CONFIRMED can be cancelled
        * without touching inventory.
        *
-       * ALLOCATED requires releasing its reservations.
+       * ALLOCATED requires releasing reservations.
        *
        * FULFILLED and CANCELLED cannot be cancelled.
        */
@@ -48,62 +48,67 @@ export class PrismaOrderCancellationRepository {
       if (order.status === "ALLOCATED") {
         for (const item of order.items) {
           /*
-           * Find the exact reservation belonging
-           * to this order item.
+           * One OrderItem can have multiple reservations.
            */
-          const reservation = await tx.reservation.findUnique({
+          const reservations = await tx.reservation.findMany({
             where: {
               orderItemId: item.id,
             },
+            orderBy: {
+              createdAt: "asc",
+            },
           });
 
-          if (!reservation) {
+          if (reservations.length === 0) {
             throw new Error(`Reservation not found for order item ${item.id}`);
           }
 
-          /*
-           * Release the exact inventory record that
-           * was reserved during allocation.
-           *
-           * available += reserved quantity
-           * reserved  -= reserved quantity
-           */
-          const updated = await tx.inventory.updateMany({
-            where: {
-              id: reservation.inventoryId,
-              reserved: {
-                gte: reservation.quantity,
+          for (const reservation of reservations) {
+            /*
+             * Release the exact inventory record that
+             * was reserved during allocation.
+             *
+             * available += reserved quantity
+             * reserved  -= reserved quantity
+             */
+            const updated = await tx.inventory.updateMany({
+              where: {
+                id: reservation.inventoryId,
+                reserved: {
+                  gte: reservation.quantity,
+                },
               },
-            },
-            data: {
-              available: {
-                increment: reservation.quantity,
+              data: {
+                available: {
+                  increment: reservation.quantity,
+                },
+                reserved: {
+                  decrement: reservation.quantity,
+                },
               },
-              reserved: {
-                decrement: reservation.quantity,
-              },
-            },
-          });
+            });
 
-          if (updated.count !== 1) {
-            throw new Error(`Unable to release reservation ${reservation.id}`);
+            if (updated.count !== 1) {
+              throw new Error(
+                `Unable to release reservation ${reservation.id}`,
+              );
+            }
+
+            /*
+             * Reservation has now been released.
+             */
+            await tx.reservation.delete({
+              where: {
+                id: reservation.id,
+              },
+            });
           }
-
-          /*
-           * The reservation has now been released,
-           * so remove it.
-           */
-          await tx.reservation.delete({
-            where: {
-              id: reservation.id,
-            },
-          });
         }
       }
 
       /*
-       * Only mark the order as cancelled after every
-       * inventory operation has succeeded.
+       * Only mark the order as CANCELLED after all
+       * inventory operations have succeeded.
        */
       const cancelledOrder = await tx.order.update({
         where: {
