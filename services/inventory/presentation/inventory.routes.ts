@@ -5,6 +5,7 @@ import { prisma } from "../../../apps/api/src/plugins/prisma.js";
 import { CreateInventory } from "../application/create-inventory.js";
 import { GetInventory } from "../application/get-inventory.js";
 import { ListInventory } from "../application/list-inventory.js";
+import { AddStock } from "../application/add-stock.js";
 
 import { PrismaWarehouseLookupRepository } from "../infrastructure/prisma-warehouse-lookup-repository.js";
 import { PrismaSKULookupRepository } from "../infrastructure/prisma-sku-lookup-repository.js";
@@ -19,6 +20,7 @@ import {
   createInventorySchema,
   warehouseIdParamsSchema,
   inventoryIdParamsSchema,
+  stockOperationSchema,
 } from "./inventory.schemas.js";
 
 export async function inventoryRoutes(app: FastifyInstance) {
@@ -37,6 +39,8 @@ export async function inventoryRoutes(app: FastifyInstance) {
   const getInventoryUseCase = new GetInventory(repository);
 
   const listInventoryUseCase = new ListInventory(repository);
+
+  const addStockUseCase = new AddStock(repository);
 
   /*
    * CREATE INVENTORY
@@ -385,6 +389,132 @@ export async function inventoryRoutes(app: FastifyInstance) {
       }
 
       return reply.status(200).send(inventory);
+    },
+  );
+  /*
+   * ADD STOCK
+   */
+
+  app.post(
+    "/api/v1/warehouses/:warehouseId/inventory/:inventoryId/add-stock",
+    {
+      schema: {
+        tags: ["Inventory"],
+        summary: "Add stock",
+        description: "Adds stock to an existing inventory record.",
+
+        params: {
+          type: "object",
+          required: ["warehouseId", "inventoryId"],
+          properties: {
+            warehouseId: {
+              type: "string",
+              format: "uuid",
+              description: "Warehouse UUID",
+            },
+
+            inventoryId: {
+              type: "string",
+              format: "uuid",
+              description: "Inventory UUID",
+            },
+          },
+        },
+
+        body: {
+          type: "object",
+          required: ["quantity"],
+          properties: {
+            quantity: {
+              type: "integer",
+              minimum: 1,
+              description: "Quantity to add",
+            },
+          },
+        },
+
+        response: {
+          200: {
+            description: "Stock added successfully",
+            type: "object",
+            properties: {
+              id: {
+                type: "string",
+                format: "uuid",
+              },
+
+              warehouseId: {
+                type: "string",
+                format: "uuid",
+              },
+
+              skuId: {
+                type: "string",
+                format: "uuid",
+              },
+
+              available: {
+                type: "integer",
+              },
+
+              reserved: {
+                type: "integer",
+              },
+
+              status: {
+                type: "string",
+                enum: ["ACTIVE", "INACTIVE"],
+              },
+
+              createdAt: {
+                type: "string",
+                format: "date-time",
+              },
+
+              updatedAt: {
+                type: "string",
+                format: "date-time",
+              },
+            },
+          },
+
+          404: {
+            description: "Inventory not found",
+            type: "object",
+            properties: {
+              error: {
+                type: "string",
+              },
+            },
+          },
+        },
+      },
+    },
+
+    async (request, reply) => {
+      const params = inventoryIdParamsSchema.parse(request.params);
+
+      const body = stockOperationSchema.parse(request.body);
+
+      try {
+        const inventory = await addStockUseCase.execute({
+          warehouseId: params.warehouseId,
+
+          inventoryId: params.inventoryId,
+
+          quantity: body.quantity,
+        });
+
+        return reply.status(200).send(inventory);
+      } catch (error) {
+        if (error instanceof InventoryNotFoundError) {
+          return reply.status(404).send({
+            error: error.message,
+          });
+        }
+
+        throw error;
+      }
     },
   );
 }

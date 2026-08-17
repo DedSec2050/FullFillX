@@ -17,4 +17,10 @@ export interface InventoryRepository {
     warehouseId: string,
     skuId: string,
   ): Promise<Inventory | null>;
+
+  addStock(
+    warehouseId: string,
+    inventoryId: string,
+    quantity: number,
+  ): Promise<Inventory>;
 }

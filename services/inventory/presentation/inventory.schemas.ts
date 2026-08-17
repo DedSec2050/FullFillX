@@ -16,3 +16,7 @@ export const inventoryIdParamsSchema = z.object({
 });
 
 export type CreateInventoryRequest = z.infer<typeof createInventorySchema>;
+
+export const stockOperationSchema = z.object({
+  quantity: z.number().int().positive(),
+});
