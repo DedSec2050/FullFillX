@@ -5,8 +5,11 @@ import { prisma } from "../../../apps/api/src/plugins/prisma.js";
 import { CreateOrder } from "../application/create-order.js";
 import { GetOrder } from "../application/get-order.js";
 import { ListOrders } from "../application/list-orders.js";
+import { AllocateOrder } from "../application/allocate-order.js";
+import { PrismaOrderAllocationRepository } from "../infrastructure/prisma-order-allocation-repository.js";
 
 import {
+  InsufficientInventoryError,
   InvalidOrderStatusTransitionError,
   OrderMustHaveItemsError,
   OrderNotFoundError,
@@ -33,12 +36,15 @@ export async function orderRoutes(app: FastifyInstance) {
     storeRepository,
     skuRepository,
   );
+  const allocationRepository = new PrismaOrderAllocationRepository(prisma);
 
   const getOrderUseCase = new GetOrder(repository);
 
   const listOrdersUseCase = new ListOrders(repository);
 
   const confirmOrderUseCase = new ConfirmOrder(repository);
+
+  const allocateOrderUseCase = new AllocateOrder(allocationRepository);
 
   /*
    * CREATE ORDER
@@ -428,6 +434,86 @@ export async function orderRoutes(app: FastifyInstance) {
         }
 
         if (error instanceof InvalidOrderStatusTransitionError) {
+          return reply.status(409).send({
+            error: error.message,
+          });
+        }
+
+        throw error;
+      }
+    },
+  );
+
+  app.post(
+    "/api/v1/orders/:orderId/allocate",
+    {
+      schema: {
+        tags: ["Orders"],
+        summary: "Allocate order",
+        description:
+          "Reserves inventory for all order items and transitions the order to ALLOCATED.",
+
+        params: {
+          type: "object",
+          required: ["orderId"],
+          properties: {
+            orderId: {
+              type: "string",
+              format: "uuid",
+            },
+          },
+        },
+
+        response: {
+          200: {
+            type: "object",
+          },
+
+          404: {
+            type: "object",
+            properties: {
+              error: {
+                type: "string",
+              },
+            },
+          },
+
+          409: {
+            type: "object",
+            properties: {
+              error: {
+                type: "string",
+              },
+            },
+          },
+        },
+      },
+    },
+
+    async (request, reply) => {
+      const params = orderIdParamsSchema.parse(request.params);
+
+      try {
+        const order = await allocateOrderUseCase.execute(
+          request.headers["x-tenant-id"] as string,
+          params.orderId,
+        );
+
+        return reply.status(200).send(order);
+      } catch (error) {
+        if (error instanceof OrderNotFoundError) {
+          return reply.status(404).send({
+            error: error.message,
+          });
+        }
+
+        if (error instanceof InvalidOrderStatusTransitionError) {
+          return reply.status(409).send({
+            error: error.message,
+          });
+        }
+
+        if (error instanceof InsufficientInventoryError) {
           return reply.status(409).send({
             error: error.message,
           });

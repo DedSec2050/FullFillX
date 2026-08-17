@@ -36,3 +36,14 @@ export class InvalidOrderStatusTransitionError extends Error {
     this.name = "InvalidOrderStatusTransitionError";
   }
 }
+
+export class InsufficientInventoryError extends Error {
+  constructor(
+    public readonly skuId: string,
+    public readonly requested: number,
+  ) {
+    super(`Insufficient inventory for SKU ${skuId}. Requested ${requested}.`);
+
+    this.name = "InsufficientInventoryError";
+  }
+}
