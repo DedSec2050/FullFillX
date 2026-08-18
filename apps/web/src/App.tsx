@@ -112,6 +112,17 @@ function asString(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
 
+function resolveApiUrl(path: string): string {
+  const apiBaseUrl = (import.meta.env.VITE_API_URL ?? "").replace(/\/+$/, "");
+
+  if (!apiBaseUrl) {
+    return path;
+  }
+
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${apiBaseUrl}${normalizedPath}`;
+}
+
 async function callApi(
   method: string,
   path: string,
@@ -126,7 +137,7 @@ async function callApi(
     headers["x-tenant-id"] = tenantId;
   }
 
-  const response = await fetch(path, {
+  const response = await fetch(resolveApiUrl(path), {
     method,
     headers,
     body: payload ? JSON.stringify(payload) : undefined,

@@ -1,0 +1,78 @@
+# ============================================================
+# FullFillX API - Builder
+# ============================================================
+
+FROM node:26.7-alpine3.23 AS builder
+
+WORKDIR /app
+
+# Install pnpm
+RUN npm install -g pnpm@11.22.0
+
+# Workspace/package configuration
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+
+# Prisma
+COPY prisma ./prisma
+
+# API source
+COPY apps/api ./apps/api
+
+# Services
+COPY services ./services
+
+# TypeScript configuration
+COPY tsconfig.json ./
+
+# pnpm network configuration
+RUN pnpm config set fetch-timeout 300000
+RUN pnpm config set fetch-retries 5
+RUN pnpm config set fetch-retry-mintimeout 20000
+RUN pnpm config set fetch-retry-maxtimeout 120000
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# Generate Prisma Client
+RUN pnpm prisma:generate
+
+# Build API
+RUN pnpm build
+
+
+# ============================================================
+# FullFillX API - Production
+# ============================================================
+
+FROM node:26.7-alpine3.23 AS production
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+# Install pnpm FIRST
+RUN npm install -g pnpm@11.22.0
+
+# Workspace/package configuration
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+
+# Prisma schema
+COPY prisma ./prisma
+
+# Install dependencies
+#
+# IMPORTANT:
+# prisma is currently in devDependencies,
+# so we cannot use --prod yet.
+#
+RUN pnpm install --frozen-lockfile
+
+# Generate Prisma Client
+RUN pnpm prisma:generate
+
+# Copy compiled application
+COPY --from=builder /app/dist ./dist
+
+EXPOSE 3000
+
+CMD ["node", "dist/apps/api/src/server.js"]

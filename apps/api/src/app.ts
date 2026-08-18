@@ -1,4 +1,5 @@
 import Fastify from "fastify";
+import cors from "@fastify/cors";
 import swaggerPlugin from "./plugins/swagger.js";
 import { productRoutes } from "../../../services/products/presentation/product.routes.js";
 import { skuRoutes } from "../../../services/products/presentation/sku.routes.js";
@@ -12,6 +13,13 @@ export function buildApp() {
   });
 
   app.register(swaggerPlugin);
+
+  app.register(cors, {
+    origin: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "x-tenant-id"],
+    credentials: true,
+  });
 
   app.get("/health", async () => {
     return {

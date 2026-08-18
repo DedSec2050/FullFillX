@@ -3,7 +3,9 @@
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
-const databaseUrl = process.env.DATABASE_URL;
+const databaseUrl = (
+  globalThis as { process?: { env?: { DATABASE_URL?: string } } }
+).process?.env?.DATABASE_URL;
 
 if (!databaseUrl) {
   throw new Error("DATABASE_URL is not defined");
