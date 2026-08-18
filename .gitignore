@@ -54,3 +54,4 @@ commands.txt
 .cache/
 
 endpoints.md
+nginx.conf.prod
